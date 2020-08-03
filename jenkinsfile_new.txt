@@ -1,4 +1,3 @@
-#!groovy
 def latestMavenArtifactTagBumped = null
 def grafanaImage = null
 def dtrImageBumpedVersion = null
@@ -8,9 +7,7 @@ pipeline {
  }
  environment {
  NO_PROXY =
-'.local, .global.anz.com, .service.anz, .service.test, .s
-ervice.dev, .apps.anz, .globaltest.anz.com, .service.anz,
-.dev.anz, .anz'
+'.local, .global.anz.com, .service.anz, .service.test, .service.dev, .apps.anz, .globaltest.anz.com, .service.anz, .dev.anz, .anz'
  }
  stages {
  stage ('Initialize') {
@@ -42,81 +39,52 @@ checkout([$class: 'GitSCM', branches: [[name: '*/master']], doGenerateSubmoduleC
  deleteDir() /* clean up VM workspace atthe start-/app/BL/workspace/COPS/
 COPS_Grafana_Build */
  echo 'Build grafana image in VM dbusa02l'
- checkout([$class: 'GitSCM', branches:
-[[name: '*/master']], doGenerateSubmoduleConfigurations:
-false, extensions: [], submoduleCfg: [],
-userRemoteConfigs: [[credentialsId:
-'aublcibotdsa_global', url: '<GIT for Grafana Repo>']]])
-
+ checkout([$class: 'GitSCM', branches: [[name: '*/master']], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[credentialsId: 'aublcibotdsa_global', url: '<GIT for Grafana Repo>']]])
  script{
  // Get the latest grafana image Version from DTR
- def GrafanaImageLlatestversion= dtrutil action:
-"getLatestImageTag", registry: "https://
-dtrqa.docker.service.anz", repository: "bl-cops",
-imagename: "grafana"
- println "Final Image
-Tag:"+GrafanaImageLlatestversion
- // Get the version incremented for
-building the new image
- dtrImageBumpedVersion = semverutil
-bump: "PATCH", version: "$
-{GrafanaImageLlatestversion}"
- println "Bumped Up
-Version:"+dtrImageBumpedVersion
+ def GrafanaImageLlatestversion= dtrutil action: "getLatestImageTag", registry: "https://dtrqa.docker.service.anz", repository: "bl-cops", imagename: "grafana"
+ println "Final Image Tag:"+GrafanaImageLlatestversion
+ // Get the version incremented for building the new image
+ def dtrImageBumpedVersion = semverutil bump: "PATCH", version: "${GrafanaImageLlatestversion}"
+ println "Bumped Up Version:"+dtrImageBumpedVersion
  //docker registry repository name
- def
-dockerRegistryPath='<docker registry path>'
+ def dockerRegistryPath='<docker registry path>'
  //image name
- def
-imageName='grafana'
- def ImageNameWithDTRRepoPath = "$
-{dockerRegistryPath}/${imageName}"
+ def imageName='grafana'
+ def ImageNameWithDTRRepoPath = "${dockerRegistryPath}/${imageName}"
  // Build new Docker image grafana
- echo 'Build new Docker image
-grafana'
- grafanaImage =
-docker.build(ImageNameWithDTRRepoPath)
+ echo 'Build new Docker image grafana'
+ grafanaImage = docker.build(ImageNameWithDTRRepoPath)
  }
  }
 
  }
- stage ('Create tags -latestversion,latestfor
-prometheus image and push the image to DTR from VM
-dbusa02l') {
+ stage ('Create tags -latestversion,latestfor prometheus image and push the image to DTR from VM dbusa02l') {
  agent {
  label "dbusa02vmslave"
  }
  // Login to Docker Trusted Registry
  steps{
  script{
- echo 'Login to Docker Trusted
-Registry'
- docker.withRegistry('https://
-dtrqa.docker.service.anz', 'aublcibotdsa_globaltest') {
- // Create the
-tags(dtrImageBumpedVersion and latest) and push to DTR
+ echo 'Login to Docker Trusted Registry'
+ docker.withRegistry('https://dtrqa.docker.service.anz', 'aublcibotdsa_globaltest') {
+ // Create thetags(dtrImageBumpedVersion and latest) and push to DTR
  echo 'Create tags for grafana image with bumpedVersion and latest and push tags to DTR'
- grafanaImage.push("$
-{dtrImageBumpedVersion}")
-
-grafanaImage.push("latest")
+ grafanaImage.push("${dtrImageBumpedVersion}")
+ grafanaImage.push("latest")
  }
  }
  }
  }
- stage ('Remove created grafana images from VM
-dbusa02l') {
+ stage ('Remove created grafana images from VM dbusa02l') {
  agent {
  label "dbusa02vmslave"
  }
  steps{
  // Delete image from VM dbusa02l
- echo 'Delete grafana
-image created on VM-dbusa02l'
- sh "docker rmi --force \$(docker images -q
-${grafanaImage.id} | uniq)"
- echo 'Delete workspace after building the
-grafana image:'
+ echo 'Delete grafana image created on VM-dbusa02l'
+ sh "docker rmi --force \$(docker images -q ${grafanaImage.id} | uniq)"
+ echo 'Delete workspace after building the grafana image:'
  deleteDir() /* clean up VM workspace at the end after building image*/
  }
  }
@@ -128,24 +96,15 @@ workspace at the end*/
  }
  success {
  echo 'Build Success!'
- notify type: "slack", message: "Build
-succeeded", channel: "#cops", messageHead:true, color:
-"good", messageDetails: true, addTestSummary: false,
-addFailedTestResults: false, addArtifactsHeading:false
+ notify type: "slack", message: "Build succeeded", channel: "#cops", messageHead:true, color: "good", messageDetails: true, addTestSummary: false, addFailedTestResults: false, addArtifactsHeading:false
  }
  unstable {
  echo 'Build Unstable!'
- notify type: "slack", message: "Build
-unstable", channel: "#cops", messageHead:true, color:
-"danger", messageDetails: true, addTestSummary: false,
-addFailedTestResults: false, addArtifactsHeading:false
+ notify type: "slack", message: "Build unstable", channel: "#cops", messageHead:true, color: "danger", messageDetails: true, addTestSummary: false, addFailedTestResults: false, addArtifactsHeading:false
  }
  failure {
  echo 'Build Failed!'
- notify type: "slack", message: "Build
-failed", channel: "#cops", messageHead:true, color:
-"danger", messageDetails: true, addTestSummary: false,
-addFailedTestResults: false, addArtifactsHeading:false
+ notify type: "slack", message: "Build failed", channel: "#cops", messageHead:true, color: "danger", messageDetails: true, addTestSummary: false, addFailedTestResults: false, addArtifactsHeading:false
  }
  }
 }
